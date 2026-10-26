@@ -4,22 +4,22 @@ Read-only, namespace-scoped Kubernetes inventory for Argus SRE. The collector ru
 
 ## Install
 
-Requirements: Kubernetes 1.27+, Helm 3.10+, kubectl, an administrator context for installation, and outbound DNS/HTTPS access to Argus and the image registry. Selected namespaces must already exist. NetworkPolicy enforcement depends on your CNI.
+Requirements: Kubernetes 1.27+, Helm 3.10+, kubectl with administrator access to your cluster, and outbound DNS/HTTPS access to Argus and the image registry. Selected namespaces must already exist. NetworkPolicy enforcement depends on your CNI.
 
-In Argus, open your project → **Connections → Kubernetes**, enter a name and choose namespaces. Generate the Helm installation script, review it, and run it using the intended cluster context within 30 minutes. It creates an external credential Secret and optional CA ConfigMap, then installs the public chart. Check the last received snapshot and collection coverage in Argus.
+In Argus, open your project → **Connections → Kubernetes → Connect a cluster**. Enter a name and choose namespaces, then copy the installation command and run it in your cluster terminal within 30 minutes. No script download is required. The command creates an external credential Secret and optional CA ConfigMap, then installs the public chart. The dialog updates automatically from Connecting to Connected when the collector reports back. Cluster details show inventory and collection coverage.
 
 For a manual Helm install, first create a Secret in the collector namespace with keys `enrollment-key` and `agent-key` from Argus. Use private files or your secret manager; keep credentials out of Helm values and command arguments:
 
 ```bash
-kubectl --context YOUR_CLUSTER create namespace argus-system
-kubectl --context YOUR_CLUSTER -n argus-system create secret generic argus-credentials \
+kubectl create namespace argus-system
+kubectl -n argus-system create secret generic argus-credentials \
   --from-file=enrollment-key=/private/path/enrollment-key \
   --from-file=agent-key=/private/path/agent-key
 
 helm repo add argus https://ossamasgr.github.io/Argus-Kubernetes-Collector
 helm repo update argus
 helm upgrade --install argus-collector argus/argus-collector \
-  --kube-context YOUR_CLUSTER --namespace argus-system \
+  --namespace argus-system \
   --version 0.1.0 \
   --set-string argus.endpoint='https://YOUR_ARGUS/api/kubernetes-agent/PROJECT_ID/CONNECTION_ID' \
   --set credentials.existingSecret=argus-credentials \
@@ -65,9 +65,9 @@ The pod runs as UID/GID 10001 with a read-only filesystem, dropped capabilities 
 Upgrade with an explicit chart version and retain your endpoint, namespace scope and external Secret/CA settings. Credential replacement in Argus immediately invalidates old keys: update the external Secret and change `credentials.revision` or restart the deployment. For existing YAML installations, remove the old installation before migrating; the generated Helm namespace avoids ownership collisions.
 
 ```bash
-kubectl --context YOUR_CLUSTER -n argus-system rollout status deployment/argus-collector-argus
-kubectl --context YOUR_CLUSTER -n argus-system logs deployment/argus-collector-argus
-helm --kube-context YOUR_CLUSTER uninstall argus-collector --namespace argus-system
+kubectl -n argus-system rollout status deployment/argus-collector-argus
+kubectl -n argus-system logs deployment/argus-collector-argus
+helm uninstall argus-collector --namespace argus-system
 ```
 
 Helm uninstall removes the deployment and its namespace Roles/RoleBindings. It leaves the external Secret, CA ConfigMap and namespace. Remove those when appropriate and revoke the connection in Argus. Do not delete a namespace containing other workloads.
