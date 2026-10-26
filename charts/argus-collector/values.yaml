@@ -1,0 +1,25 @@
+argus:
+  # Full project/connection endpoint supplied by Argus. HTTPS is mandatory.
+  endpoint: ""
+watchNamespaces: []
+credentials:
+  # Pre-created Secret with enrollment-key and agent-key; secrets are never Helm values.
+  existingSecret: ""
+  # Non-secret revision used to restart the collector after credential replacement.
+  revision: ""
+ca:
+  # Optional ConfigMap containing ca.crt, for a private Argus CA.
+  existingConfigMap: ""
+image:
+  repository: ghcr.io/ossamasgr/argus-kubernetes-collector
+  tag: "0.1.0"
+  # Release automation pins the published chart to its multi-architecture image digest.
+  digest: ""
+  pullPolicy: IfNotPresent
+resources:
+  requests: {cpu: 50m, memory: 64Mi}
+  limits: {cpu: 250m, memory: 128Mi}
+networkPolicy:
+  enabled: true
+  apiServerPort: 6443
+  platformPort: 443

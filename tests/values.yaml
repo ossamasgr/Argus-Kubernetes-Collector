@@ -1,0 +1,10 @@
+argus:
+  endpoint: https://argus.example.com/api/kubernetes-agent/00000000-0000-0000-0000-000000000001/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+watchNamespaces: [production, monitoring]
+credentials:
+  existingSecret: fixture-credentials
+  revision: fixture-revision
+ca:
+  existingConfigMap: fixture-ca
+image:
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

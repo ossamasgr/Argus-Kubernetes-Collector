@@ -1,0 +1,11 @@
+apiVersion: v2
+name: argus-collector
+description: Namespace-scoped read-only Kubernetes inventory collector for Argus SRE
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/ossamasgr/Argus-Kubernetes-Collector
+sources:
+  - https://github.com/ossamasgr/Argus-Kubernetes-Collector
+keywords: [argus, kubernetes, sre, inventory, observability]

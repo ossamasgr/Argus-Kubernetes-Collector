@@ -1,0 +1,13 @@
+Argus collector installed in {{ .Release.Namespace }}.
+
+Check the deployment:
+  kubectl --namespace {{ .Release.Namespace }} rollout status deployment/{{ include "argus.name" . }}
+  kubectl --namespace {{ .Release.Namespace }} logs deployment/{{ include "argus.name" . }}
+
+Selected namespaces: {{ join ", " .Values.watchNamespaces }}
+Collection status and incomplete coverage appear in your Argus project.
+Allow outbound DNS and verified HTTPS to Argus and the Kubernetes API.
+
+To uninstall:
+  helm uninstall {{ .Release.Name }} --namespace {{ .Release.Namespace }}
+Then remove the external credential Secret/CA ConfigMap and revoke the connection in Argus.
