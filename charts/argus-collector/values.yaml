@@ -12,7 +12,7 @@ ca:
   existingConfigMap: ""
 image:
   repository: ghcr.io/ossamasgr/argus-kubernetes-collector
-  tag: "0.1.0"
+  tag: "v0.1.0"
   # Release automation pins the published chart to its multi-architecture image digest.
   digest: ""
   pullPolicy: IfNotPresent

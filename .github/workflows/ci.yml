@@ -13,3 +13,5 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Validate read-only collector and chart
         run: bash scripts/validate.sh
+      - name: Scan source, manifests and runtime image
+        run: bash scripts/scan.sh
