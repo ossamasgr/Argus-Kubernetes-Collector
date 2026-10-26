@@ -2,6 +2,7 @@
 
 - Optional host aliases for private Argus ingress addresses while preserving HTTPS hostname/certificate verification.
 - Helm now manages private routing overrides across upgrades.
+- Explicit platform CA bundles define trust without silently accepting certificates from unrelated public sites.
 
 # 0.1.0
 

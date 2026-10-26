@@ -26,7 +26,7 @@ helm upgrade --install argus-collector argus/argus-collector \
   --set-json 'watchNamespaces=["production","monitoring"]'
 ```
 
-Replace the placeholder endpoint with the complete URL supplied by Argus. Public charts/images need no GitHub login; each connection still needs project enrollment credentials. For private Argus certificates, create a ConfigMap with the trusted CA under `ca.crt` and add `--set ca.existingConfigMap=argus-platform-ca`. Argus-generated setup includes the configured CA automatically. TLS verification stays enabled; private CA trust supplements system trust.
+Replace the placeholder endpoint with the complete URL supplied by Argus. Public charts/images need no GitHub login; each connection still needs project enrollment credentials. For private Argus certificates, create a ConfigMap with the trusted CA under `ca.crt` and add `--set ca.existingConfigMap=argus-platform-ca`. Argus-generated setup includes the configured CA automatically. TLS verification stays enabled. When a CA bundle is explicitly configured, it defines trust for Argus; unrelated public-site certificates are rejected. Without a custom bundle, normal system roots are used.
 
 ## Collected data and access
 

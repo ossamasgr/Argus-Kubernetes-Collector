@@ -26,9 +26,8 @@ class NoRedirect(HTTPRedirectHandler):
 def transfer(url, token, body=None, ca=None):
     if urlsplit(url).scheme != 'https':
         raise ValueError('HTTPS is required')
-    context = ssl.create_default_context()
-    if ca:
-        context.load_verify_locations(cafile=ca)
+    # An explicitly configured CA defines platform trust; do not accept an unrelated public-site certificate.
+    context = ssl.create_default_context(cafile=ca)
     opener = build_opener(ProxyHandler({}), HTTPSHandler(context=context), NoRedirect())
     request = Request(url, data=json.dumps(body).encode() if body is not None else None,  # noqa: S310 -- HTTPS scheme validated above
         headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json', 'Content-Type': 'application/json'})
