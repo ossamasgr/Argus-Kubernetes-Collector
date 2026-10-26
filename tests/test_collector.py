@@ -81,6 +81,7 @@ def test_chart_is_namespaced_read_only_and_uses_external_credentials():
         assert all(rule['verbs'] == ['get', 'list'] for rule in role['rules'])
         assert not {'secrets', 'configmaps', 'nodes', 'pods/log', 'pods/exec'} & {r for rule in role['rules'] for r in rule['resources']}
     pod = next(o for o in objects if o['kind'] == 'Deployment')['spec']['template']['spec']
+    assert pod['hostAliases'] == [{'ip': '192.0.2.10', 'hostnames': ['argus.example.com']}]
     assert pod['securityContext']['runAsNonRoot'] is True
     container = pod['containers'][0]
     assert container['securityContext']['readOnlyRootFilesystem'] is True
