@@ -1,0 +1,70 @@
+name: Publish collector and Helm repository
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: public-collector-release
+  cancel-in-progress: false
+jobs:
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      packages: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate release source
+        run: |
+          bash scripts/validate.sh
+          bash scripts/scan.sh
+          test "${GITHUB_REF_NAME}" = "v$(sed -n 's/^version: //p' charts/argus-collector/Chart.yaml)"
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-architecture image
+        id: image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/ossamasgr/argus-kubernetes-collector:${{ github.ref_name }}
+          build-args: VERSION=${{ github.ref_name }}
+      - name: Package immutable chart and create release
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed -i "s/^  tag: .*/  tag: \"${GITHUB_REF_NAME}\"/; s/^  digest: .*/  digest: \"${IMAGE_DIGEST}\"/" charts/argus-collector/values.yaml
+          mkdir -p dist
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work alpine/helm:3.19.0 package charts/argus-collector --destination dist
+          gh release create "$GITHUB_REF_NAME" "dist/argus-collector-${version}.tgz" --verify-tag --title "Argus Kubernetes Collector ${version}" --notes-file CHANGELOG.md
+          status=$(curl -sS -o dist/previous-index.yaml -w '%{http_code}' https://ossamasgr.github.io/Argus-Kubernetes-Collector/index.yaml)
+          args=()
+          if [ "$status" = 200 ]; then args=(--merge dist/previous-index.yaml); elif [ "$status" != 404 ]; then echo "Cannot read existing chart index: HTTP $status"; exit 1; fi
+          docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work alpine/helm:3.19.0 repo index dist --url "https://github.com/ossamasgr/Argus-Kubernetes-Collector/releases/download/${GITHUB_REF_NAME}" "${args[@]}"
+          rm -f dist/previous-index.yaml
+          cp docs/index.html dist/index.html
+          touch dist/.nojekyll
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: dist
+      - name: Publish public chart repository
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
