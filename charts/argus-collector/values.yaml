@@ -2,6 +2,8 @@ argus:
   # Full project/connection endpoint supplied by Argus. HTTPS is mandatory.
   endpoint: ""
 watchNamespaces: []
+# Optional private DNS overrides for the Argus origin; certificate verification remains enabled.
+hostAliases: []
 credentials:
   # Pre-created Secret with enrollment-key and agent-key; secrets are never Helm values.
   existingSecret: ""
@@ -12,7 +14,7 @@ ca:
   existingConfigMap: ""
 image:
   repository: ghcr.io/ossamasgr/argus-kubernetes-collector
-  tag: "v0.1.0"
+  tag: "v0.1.1"
   # Release automation pins the published chart to its multi-architecture image digest.
   digest: ""
   pullPolicy: IfNotPresent

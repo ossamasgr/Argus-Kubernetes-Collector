@@ -1,6 +1,9 @@
 argus:
   endpoint: https://argus.example.com/api/kubernetes-agent/00000000-0000-0000-0000-000000000001/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 watchNamespaces: [production, monitoring]
+hostAliases:
+  - ip: 192.0.2.10
+    hostnames: [argus.example.com]
 credentials:
   existingSecret: fixture-credentials
   revision: fixture-revision

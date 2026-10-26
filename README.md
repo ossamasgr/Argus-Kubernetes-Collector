@@ -20,13 +20,13 @@ helm repo add argus https://ossamasgr.github.io/Argus-Kubernetes-Collector
 helm repo update argus
 helm upgrade --install argus-collector argus/argus-collector \
   --namespace argus-system \
-  --version 0.1.0 \
+  --version 0.1.1 \
   --set-string argus.endpoint='https://YOUR_ARGUS/api/kubernetes-agent/PROJECT_ID/CONNECTION_ID' \
   --set credentials.existingSecret=argus-credentials \
   --set-json 'watchNamespaces=["production","monitoring"]'
 ```
 
-Replace the placeholder endpoint with the complete URL supplied by Argus. Public charts/images need no GitHub login; each connection still needs project enrollment credentials. For private Argus certificates, create a ConfigMap with the trusted CA under `ca.crt` and add `--set ca.existingConfigMap=argus-platform-ca`. Argus-generated setup includes the configured CA automatically. TLS verification stays enabled; private CA trust supplements system trust.
+Replace the placeholder endpoint with the complete URL supplied by Argus. Public charts/images need no GitHub login; each connection still needs project enrollment credentials. For private Argus certificates, create a ConfigMap with the trusted CA under `ca.crt` and add `--set ca.existingConfigMap=argus-platform-ca`. Argus-generated setup includes the configured CA automatically. TLS verification stays enabled. When a CA bundle is explicitly configured, it defines trust for Argus; unrelated public-site certificates are rejected. Without a custom bundle, normal system roots are used.
 
 ## Collected data and access
 
@@ -49,6 +49,7 @@ Snapshots include at most 500 resources, bounded payloads and explicit coverage 
 | --- | --- |
 | `argus.endpoint` | Complete HTTPS project/connection endpoint |
 | `watchNamespaces` | Explicit namespaces matching the Argus connection |
+| `hostAliases` | Optional IP/hostname pairs for private Argus routing; no cluster-wide DNS changes |
 | `credentials.existingSecret` | External Secret with both credential keys |
 | `credentials.revision` | Non-secret rollout revision after replacing credentials |
 | `ca.existingConfigMap` | Optional ConfigMap containing `ca.crt` |
@@ -59,6 +60,8 @@ Snapshots include at most 500 resources, bounded payloads and explicit coverage 
 | `networkPolicy.enabled` | Denied ingress and port-restricted egress, default true |
 
 The pod runs as UID/GID 10001 with a read-only filesystem, dropped capabilities and RuntimeDefault seccomp. It rereads rotated ServiceAccount tokens for each request. Environment proxies are disabled; proxy-only clusters require an explicit supported adaptation. No insecure TLS mode exists.
+
+If Argus uses private DNS, ensure the collector resolves its hostname to the correct ingress. You can provide `--set-json 'hostAliases=[{"ip":"192.0.2.10","hostnames":["argus.example.com"]}]'` with your administrator-provided address, or use private DNS. A wrong public DNS result can reach a different website. The hostname in the endpoint and its trusted certificate must still match. Always run the complete Argus-generated install command: the final Helm line alone assumes that the referenced credential Secret and optional CA ConfigMap already exist.
 
 ## Upgrade and uninstall
 

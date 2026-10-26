@@ -44,12 +44,12 @@ def test_collection_deadline_bounds_requests(monkeypatch):
     assert not result['items'] and all(c['error'] == 'unavailable' for c in result['coverage'])
 
 
-def test_tls_preserves_system_roots_and_adds_custom_ca(monkeypatch):
-    class Context:
-        def load_verify_locations(self, *, cafile):
-            assert cafile == '/fixture/ca.pem'
-    context = Context()
-    monkeypatch.setattr(agent.ssl, 'create_default_context', lambda: context)
+def test_tls_uses_explicit_ca_or_system_roots_without_silent_fallback(monkeypatch):
+    trust = []
+    def context(*, cafile):
+        trust.append(cafile)
+        return object()
+    monkeypatch.setattr(agent.ssl, 'create_default_context', context)
     class Response:
         def __enter__(self):
             return self
@@ -66,6 +66,9 @@ def test_tls_preserves_system_roots_and_adds_custom_ca(monkeypatch):
     monkeypatch.setattr(agent, 'HTTPSHandler', lambda **kwargs: kwargs)
     monkeypatch.setattr(agent, 'build_opener', lambda *args: Opener())
     assert agent.transfer('https://argus.example.com', 'fixture', {}, ca='/fixture/ca.pem') == {'status': 'ok'}
+    assert trust == ['/fixture/ca.pem']
+    assert agent.transfer('https://argus.example.com', 'fixture', {}) == {'status': 'ok'}
+    assert trust == ['/fixture/ca.pem', None]
     with pytest.raises(ValueError, match='HTTPS'):
         agent.transfer('http://argus.example.com', 'fixture')
     assert agent.NoRedirect().redirect_request(None, None, 302, '', {}, 'https://elsewhere.example.com') is None
@@ -81,6 +84,7 @@ def test_chart_is_namespaced_read_only_and_uses_external_credentials():
         assert all(rule['verbs'] == ['get', 'list'] for rule in role['rules'])
         assert not {'secrets', 'configmaps', 'nodes', 'pods/log', 'pods/exec'} & {r for rule in role['rules'] for r in rule['resources']}
     pod = next(o for o in objects if o['kind'] == 'Deployment')['spec']['template']['spec']
+    assert pod['hostAliases'] == [{'ip': '192.0.2.10', 'hostnames': ['argus.example.com']}]
     assert pod['securityContext']['runAsNonRoot'] is True
     container = pod['containers'][0]
     assert container['securityContext']['readOnlyRootFilesystem'] is True
