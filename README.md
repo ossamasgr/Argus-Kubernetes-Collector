@@ -57,6 +57,11 @@ Snapshots include at most 500 resources, bounded payloads and explicit coverage 
 | `resources` | CPU/memory requests and limits |
 | `networkPolicy.apiServerPort` | API port, default 6443; 443 is also allowed |
 | `networkPolicy.platformPort` | Argus HTTPS port, default 443 |
+
+For optional private Prometheus rule discovery and watches, see the
+[private monitoring setup guide](docs/private-monitoring.md). The feature is
+disabled by default and requires an operator-managed target Secret, a persistent
+replay-claim volume, and explicit network destinations.
 | `networkPolicy.enabled` | Denied ingress and port-restricted egress, default true |
 
 The pod runs as UID/GID 10001 with a read-only filesystem, dropped capabilities and RuntimeDefault seccomp. It rereads rotated ServiceAccount tokens for each request. Environment proxies are disabled; proxy-only clusters require an explicit supported adaptation. No insecure TLS mode exists.

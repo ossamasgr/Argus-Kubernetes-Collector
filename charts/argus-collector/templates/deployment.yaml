@@ -30,6 +30,9 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
         runAsGroup: 10001
+        {{- if .Values.monitoring.enabled }}
+        fsGroup: 10001
+        {{- end }}
         seccompProfile: {type: RuntimeDefault}
       containers:
         - name: collector
@@ -40,6 +43,12 @@ spec:
               value: {{ .Values.argus.endpoint | quote }}
             - name: ARGUS_NAMESPACES
               value: {{ .Values.watchNamespaces | toJson | quote }}
+            {{- if .Values.monitoring.enabled }}
+            - name: ARGUS_MONITORING_TARGETS_FILE
+              value: /monitoring/targets.json
+            - name: ARGUS_MONITORING_STATE_DIR
+              value: /monitoring-state
+            {{- end }}
             {{- if .Values.ca.existingConfigMap }}
             - name: ARGUS_CA_FILE
               value: /etc/argus-ca/ca.crt
@@ -54,6 +63,13 @@ spec:
             - name: credentials
               mountPath: /credentials
               readOnly: true
+            {{- if .Values.monitoring.enabled }}
+            - name: monitoring-targets
+              mountPath: /monitoring
+              readOnly: true
+            - name: monitoring-state
+              mountPath: /monitoring-state
+            {{- end }}
             {{- if .Values.ca.existingConfigMap }}
             - name: platform-ca
               mountPath: /etc/argus-ca
@@ -66,6 +82,14 @@ spec:
             items:
               - {key: enrollment-key, path: enrollment-key}
               - {key: agent-key, path: agent-key}
+        {{- if .Values.monitoring.enabled }}
+        - name: monitoring-targets
+          secret:
+            secretName: {{ .Values.monitoring.existingSecret | quote }}
+        - name: monitoring-state
+          persistentVolumeClaim:
+            claimName: {{ .Values.monitoring.stateClaim | quote }}
+        {{- end }}
         {{- if .Values.ca.existingConfigMap }}
         - name: platform-ca
           configMap:

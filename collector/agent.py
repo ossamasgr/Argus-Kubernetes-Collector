@@ -123,6 +123,18 @@ def main():
         except Exception:
             # Provider responses and bearer credentials never enter logs.
             print('{"event":"collection_or_delivery_failed"}', flush=True)
+        targets = os.environ.get('ARGUS_MONITORING_TARGETS_FILE')
+        if targets:
+            try:
+                try:
+                    from .monitoring_runtime import run_once
+                except ImportError:
+                    from monitoring_runtime import run_once
+                result = run_once(endpoint, Path('/credentials/agent-key').read_text().strip(), platform_ca,
+                    targets, os.environ['ARGUS_MONITORING_STATE_DIR'], transfer)
+                print(json.dumps({'event': 'private_monitoring', 'result': result}), flush=True)
+            except Exception:
+                print('{"event":"private_monitoring_failed"}', flush=True)
         time.sleep(max(5, 60 - (time.monotonic() - started)))
 
 
