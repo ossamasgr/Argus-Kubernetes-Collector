@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +43,13 @@ def configuration(path, *, mount_root='/monitoring'):
         ca_bytes = Path(item['ca_file']).read_bytes() if item.get('ca_file') else b''
         if len(ca_bytes) > 64_000:
             raise ValueError('invalid_configuration')
+        if ca_bytes:
+            if b'PRIVATE KEY' in ca_bytes:
+                raise ValueError('invalid_configuration')
+            try:
+                ssl.create_default_context(cadata=ca_bytes.decode('ascii'))
+            except (UnicodeDecodeError, ssl.SSLError):
+                raise ValueError('invalid_configuration') from None
         # Target identity changes with local configuration and the public CA.
         # The operator-provided target_revision is a nonce to rotate on token changes;
         # bearer contents are deliberately not hashed or sent to the platform.

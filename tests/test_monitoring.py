@@ -54,6 +54,13 @@ def test_local_configuration_rejects_paths_and_unknown_fields(tmp_path):
     path.write_text(json.dumps([{**target, 'token_file':str(outside)}]))
     with pytest.raises(ValueError, match='invalid_configuration'):
         monitoring_runtime.configuration(path, mount_root=tmp_path / 'secrets')
+    secret_dir = tmp_path / 'secrets'
+    secret_dir.mkdir()
+    invalid_ca = secret_dir / 'ca.crt'
+    invalid_ca.write_text('PRIVATE KEY')
+    path.write_text(json.dumps([{**target, 'ca_file':str(invalid_ca)}]))
+    with pytest.raises(ValueError, match='invalid_configuration'):
+        monitoring_runtime.configuration(path, mount_root=secret_dir)
     path.write_text(json.dumps([target, target]))
     with pytest.raises(ValueError, match='invalid_configuration'):
         monitoring_runtime.configuration(path)

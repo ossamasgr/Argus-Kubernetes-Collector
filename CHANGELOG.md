@@ -1,3 +1,9 @@
+# 0.2.0
+
+- Optional, operator-approved private Prometheus rule discovery and signal reads.
+- Fixed read operations, verified TLS, address checks, replay claims and minimized results.
+- Private monitoring requires explicit target, platform and Kubernetes API egress destinations.
+
 # 0.1.1
 
 - Optional host aliases for private Argus ingress addresses while preserving HTTPS hostname/certificate verification.
