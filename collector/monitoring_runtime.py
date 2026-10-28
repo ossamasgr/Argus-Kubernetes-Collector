@@ -1,4 +1,5 @@
 """Private Prometheus collector runtime, configured only by the cluster operator."""
+import hashlib
 import json
 import os
 import re
@@ -38,9 +39,17 @@ def configuration(path, *, mount_root='/monitoring'):
                     Path(item[key]).resolve(strict=True).relative_to(root)
                 except (ValueError, TypeError, OSError):
                     raise ValueError('invalid_configuration') from None
+        ca_bytes = Path(item['ca_file']).read_bytes() if item.get('ca_file') else b''
+        if len(ca_bytes) > 64_000:
+            raise ValueError('invalid_configuration')
+        # Target identity changes with local configuration and the public CA.
+        # The operator-provided target_revision is a nonce to rotate on token changes;
+        # bearer contents are deliberately not hashed or sent to the platform.
+        derived = hashlib.sha256(json.dumps({'target': item, 'ca_sha256': hashlib.sha256(ca_bytes).hexdigest()},
+            sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
         target = monitoring.Target(host=item['host'], port=item['port'], ca_file=item.get('ca_file', ''),
                                    token_file=item.get('token_file', ''))
-        registrations[connection] = monitoring.Registration(item['connection_revision'], item['target_revision'], target)
+        registrations[connection] = monitoring.Registration(item['connection_revision'], derived, target)
     return registrations
 
 
@@ -74,6 +83,17 @@ def clean_old_claims(directory, *, now=None):
                 continue
 
 
+def bounded_result(value):
+    if len(json.dumps(value, allow_nan=False).encode()) > 65_536:
+        raise ValueError('limit')
+    def visit(item, depth=0):
+        if depth > 16:
+            raise ValueError('limit')
+        for child in item.values() if isinstance(item, dict) else item if isinstance(item, list) else ():
+            visit(child, depth + 1)
+    visit(value)
+
+
 def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer):
     registrations = configuration(targets_file)
     clean_old_claims(state_dir)
@@ -92,12 +112,11 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
     try:
         data = monitoring.execute_lease(lease, workspace_id=workspace, collector_id=collector,
             registrations=registrations, claim=lambda key: claim_once(state_dir, key))
-        if len(json.dumps(data, allow_nan=False).encode()) > 65_536:
-            raise ValueError('limit')
+        bounded_result(data)
         outcome, error = 'complete', ''
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         # Never include provider response bodies, local paths or credentials in errors.
-        data, outcome, error = {}, 'failed', 'unreachable'
+        data, outcome, error = {}, 'failed', 'limit' if str(exc) == 'limit' else 'unreachable'
     result = {k:v for k, v in lease.items() if k not in ('issued_at', 'expires_at')}
     result.update(outcome=outcome, error_code=error, data=data, observed_at=datetime.now(timezone.utc).isoformat())
     transfer(endpoint + '/monitoring-result', agent_key, result, ca=platform_ca)

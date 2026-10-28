@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -15,10 +16,11 @@ def test_private_monitoring_runs_only_fixed_approved_target(tmp_path, monkeypatc
                'host':'prometheus.internal', 'port':443}]
     path = tmp_path / 'targets.json'
     path.write_text(json.dumps(config))
+    target_revision = monitoring_runtime.configuration(path)['monitoring:one'].target_revision
     now = datetime.now(timezone.utc)
     lease = {'schema_version':1, 'capability':monitoring_runtime.CAPABILITY, 'workspace_id':workspace,
              'collector_id':'kubernetes:' + collector, 'connection_id':'monitoring:one',
-             'connection_revision':'a'*64, 'target_revision':'b'*64, 'operation_id':operation,
+             'connection_revision':'a'*64, 'target_revision':target_revision, 'operation_id':operation,
              'lease_id':lease_id, 'operation':'prometheus.rules', 'issued_at':now.isoformat(),
              'expires_at':(now + timedelta(minutes=2)).isoformat()}
     sent = []
@@ -29,7 +31,7 @@ def test_private_monitoring_runs_only_fixed_approved_target(tmp_path, monkeypatc
         return {'status':'accepted'}
     monkeypatch.setattr(monitoring, 'read', lambda target, operation: {'status':'success', 'host':target.host, 'operation':operation})
     assert monitoring_runtime.run_once(endpoint, 'token', None, str(path), str(tmp_path), transfer) == 'complete'
-    assert sent[0][1]['targets'] == [{'connection_id':'monitoring:one', 'target_revision':'b'*64}]
+    assert sent[0][1]['targets'] == [{'connection_id':'monitoring:one', 'target_revision':target_revision}]
     assert sent[-1][1]['data']['host'] == 'prometheus.internal'
     assert (tmp_path / lease_id).exists()
     assert monitoring_runtime.run_once(endpoint, 'token', None, str(path), str(tmp_path), transfer) == 'failed'
@@ -51,3 +53,18 @@ def test_local_configuration_rejects_paths_and_unknown_fields(tmp_path):
     path.write_text(json.dumps([target, target]))
     with pytest.raises(ValueError, match='invalid_configuration'):
         monitoring_runtime.configuration(path)
+    path.write_text(json.dumps([target]))
+    first = monitoring_runtime.configuration(path)['monitoring:one'].target_revision
+    path.write_text(json.dumps([{**target, 'host':'other.internal'}]))
+    assert monitoring_runtime.configuration(path)['monitoring:one'].target_revision != first
+
+
+def test_claim_cleanup_retains_recent_and_nonclaim_files(tmp_path):
+    old, recent = tmp_path / str(uuid4()), tmp_path / str(uuid4())
+    unrelated = tmp_path / 'operator-file'
+    for path in (old, recent, unrelated):
+        path.touch()
+    os.utime(old, (1, 1))
+    os.utime(unrelated, (1, 1))
+    monitoring_runtime.clean_old_claims(tmp_path, now=100000)
+    assert not old.exists() and recent.exists() and unrelated.exists()
