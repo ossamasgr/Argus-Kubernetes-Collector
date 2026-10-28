@@ -42,3 +42,24 @@ Enable the chart with `monitoring.enabled=true`, the names of the pre-created
 `monitoring.platformCidrs` lists. NetworkPolicy cannot be disabled while this
 feature is enabled. An old inventory-only collector does not
 advertise this capability. Upgrade it to a release that includes this feature.
+
+For example, after creating the Secret and persistent claim in the collector
+namespace, configure the existing release with the destinations for your cluster:
+
+```sh
+helm upgrade argus-collector argus/argus-collector --namespace YOUR_COLLECTOR_NAMESPACE \
+  --version 0.2.0 --reuse-values --set monitoring.enabled=true \
+  --set monitoring.existingSecret=YOUR_TARGET_SECRET --set monitoring.stateClaim=YOUR_STATE_CLAIM \
+  --set-json 'monitoring.apiServerCidrs=["YOUR_API_CIDR"]' \
+  --set-json 'monitoring.platformCidrs=["YOUR_PLATFORM_CIDR"]' \
+  --set-json 'monitoring.egress=[{"cidr":"YOUR_PROMETHEUS_CIDR","port":8443}]'
+```
+
+Replace every placeholder with values for your cluster. If the Argus or Kubernetes
+API port differs from the chart defaults, also set
+`networkPolicy.platformPort` or `networkPolicy.apiServerPort` accordingly.
+Then open the Prometheus
+connection in Signals, choose the collector, approve its advertised target and
+request rule discovery. If a required CIDR, port, CA, target revision or Secret
+is wrong, discovery fails and the watch does not report recovery. Older collector
+releases and plain inventory manifests do not provide private monitoring.
