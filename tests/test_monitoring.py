@@ -29,10 +29,13 @@ def test_private_monitoring_runs_only_fixed_approved_target(tmp_path, monkeypatc
         if url.endswith('/monitoring-next'):
             return {'lease':lease}
         return {'status':'accepted'}
-    monkeypatch.setattr(monitoring, 'read', lambda target, operation: {'status':'success', 'host':target.host, 'operation':operation})
+    def read(target, operation):
+        assert target.host == 'prometheus.internal' and operation == 'prometheus.rules'
+        return {'status':'success', 'data':{'groups':[{'rules':[{'type':'alerting', 'name':'PrivateAlert', 'annotations':{'secret':'omit'}}]}]}}
+    monkeypatch.setattr(monitoring, 'read', read)
     assert monitoring_runtime.run_once(endpoint, 'token', None, str(path), str(tmp_path), transfer) == 'complete'
     assert sent[0][1]['targets'] == [{'connection_id':'monitoring:one', 'target_revision':target_revision}]
-    assert sent[-1][1]['data']['host'] == 'prometheus.internal'
+    assert sent[-1][1]['data']['data']['groups'][0]['rules'] == [{'type':'alerting', 'name':'PrivateAlert'}]
     assert (tmp_path / lease_id).exists()
     assert monitoring_runtime.run_once(endpoint, 'token', None, str(path), str(tmp_path), transfer) == 'failed'
     assert sent[-1][1]['data'] == {}

@@ -94,6 +94,42 @@ def bounded_result(value):
     visit(value)
 
 
+def minimize(value, operation):
+    """Send only fields needed by the fixed platform adapters, without annotations."""
+    if not isinstance(value, dict) or value.get('status') != 'success' or value.get('warnings'):
+        raise ValueError('invalid_response')
+    data = value.get('data')
+    if not isinstance(data, dict):
+        raise ValueError('invalid_response')
+    if operation == 'prometheus.rules':
+        groups = data.get('groups')
+        if not isinstance(groups, list):
+            raise ValueError('invalid_response')
+        rules = []
+        for group in groups:
+            if not isinstance(group, dict) or not isinstance(group.get('rules'), list):
+                raise ValueError('invalid_response')
+            for rule in group['rules']:
+                if not isinstance(rule, dict) or rule.get('type') != 'alerting' or not isinstance(rule.get('name'), str):
+                    raise ValueError('invalid_response')
+                rules.append({'type': 'alerting', 'name': rule['name']})
+                if len(rules) > 500:
+                    raise ValueError('limit')
+        return {'status': 'success', 'data': {'groups': [{'rules': rules}]}}
+    if operation == 'prometheus.alerts':
+        alerts = data.get('alerts')
+        if not isinstance(alerts, list) or len(alerts) > 500:
+            raise ValueError('limit')
+        result = []
+        for alert in alerts:
+            if (not isinstance(alert, dict) or not isinstance(alert.get('labels'), dict) or
+                    alert.get('state') not in ('pending', 'firing') or not isinstance(alert.get('activeAt'), str)):
+                raise ValueError('invalid_response')
+            result.append({'state': alert['state'], 'activeAt': alert['activeAt'], 'labels': alert['labels']})
+        return {'status': 'success', 'data': {'alerts': result}}
+    raise ValueError('unsupported_operation')
+
+
 def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer):
     registrations = configuration(targets_file)
     clean_old_claims(state_dir)
@@ -112,6 +148,7 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
     try:
         data = monitoring.execute_lease(lease, workspace_id=workspace, collector_id=collector,
             registrations=registrations, claim=lambda key: claim_once(state_dir, key))
+        data = minimize(data, lease['operation'])
         bounded_result(data)
         outcome, error = 'complete', ''
     except (OSError, ValueError, KeyError, TypeError) as exc:
