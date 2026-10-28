@@ -11,9 +11,9 @@ Before enabling the feature, a cluster administrator provides:
   and bearer-token files. Do not put tokens into Helm values or `targets.json`.
 * A writable, persistent claim for replay-protection records, accessible to UID
   and group 10001. Do not share this claim with another collector installation.
-* NetworkPolicy egress entries for the approved target CIDRs and TCP ports. The
-  cluster's CNI must enforce NetworkPolicy. Existing DNS, platform and Kubernetes
-  API egress remains available for inventory delivery.
+* NetworkPolicy egress entries for approved target CIDRs and TCP ports, plus
+  explicit Kubernetes API and Argus platform CIDRs. The cluster's CNI must enforce
+  NetworkPolicy; choose the actual destinations seen after service routing.
 
 `targets.json` is an array, for example:
 
@@ -38,5 +38,7 @@ revision and discover the rules again before starting a new watch.
 
 Enable the chart with `monitoring.enabled=true`, the names of the pre-created
 `monitoring.existingSecret` and `monitoring.stateClaim`, and explicit
-`monitoring.egress` CIDR/port pairs. An old inventory-only collector does not
+`monitoring.egress` CIDR/port pairs and the `monitoring.apiServerCidrs` and
+`monitoring.platformCidrs` lists. NetworkPolicy cannot be disabled while this
+feature is enabled. An old inventory-only collector does not
 advertise this capability. Upgrade it to a release that includes this feature.

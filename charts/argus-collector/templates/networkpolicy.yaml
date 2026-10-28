@@ -17,11 +17,22 @@ spec:
     - ports:
         - {protocol: UDP, port: 53}
         - {protocol: TCP, port: 53}
-    - ports:
-        - {protocol: TCP, port: 443}
-        - {protocol: TCP, port: {{ .Values.networkPolicy.apiServerPort }}}
-        - {protocol: TCP, port: {{ .Values.networkPolicy.platformPort }}}
     {{- if .Values.monitoring.enabled }}
+    {{- range .Values.monitoring.apiServerCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: {{ $.Values.networkPolicy.apiServerPort }}}
+    {{- end }}
+    {{- range .Values.monitoring.platformCidrs }}
+    - to:
+        - ipBlock:
+            cidr: {{ . | quote }}
+      ports:
+        - {protocol: TCP, port: {{ $.Values.networkPolicy.platformPort }}}
+    {{- end }}
     {{- range .Values.monitoring.egress }}
     - to:
         - ipBlock:
@@ -29,5 +40,10 @@ spec:
       ports:
         - {protocol: TCP, port: {{ .port }}}
     {{- end }}
+    {{- else }}
+    - ports:
+        - {protocol: TCP, port: 443}
+        - {protocol: TCP, port: {{ .Values.networkPolicy.apiServerPort }}}
+        - {protocol: TCP, port: {{ .Values.networkPolicy.platformPort }}}
     {{- end }}
 {{- end }}

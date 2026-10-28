@@ -20,6 +20,9 @@ monitoring:
   stateClaim: ""
   # Explicit CIDR and TCP port pairs allowed for approved monitoring targets.
   egress: []
+  # Explicit destinations for the Kubernetes API and Argus platform when monitoring is enabled.
+  apiServerCidrs: []
+  platformCidrs: []
 image:
   repository: ghcr.io/ossamasgr/argus-kubernetes-collector
   tag: "v0.1.1"

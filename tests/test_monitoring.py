@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+import yaml
 
 from collector import monitoring, monitoring_runtime
 
@@ -71,3 +72,16 @@ def test_claim_cleanup_retains_recent_and_nonclaim_files(tmp_path):
     os.utime(unrelated, (1, 1))
     monitoring_runtime.clean_old_claims(tmp_path, now=100000)
     assert not old.exists() and recent.exists() and unrelated.exists()
+
+
+def test_private_chart_limits_tcp_egress_to_explicit_destinations():
+    with open('artifacts/private-monitoring.yaml') as stream:
+        objects = list(yaml.safe_load_all(stream))
+    policy = next(item for item in objects if item and item['kind'] == 'NetworkPolicy')
+    rules = policy['spec']['egress']
+    for rule in rules:
+        if any(port.get('protocol') == 'TCP' and port.get('port') != 53 for port in rule['ports']):
+            assert rule.get('to') and all('ipBlock' in peer for peer in rule['to'])
+    deployment = next(item for item in objects if item and item['kind'] == 'Deployment')
+    volumes = deployment['spec']['template']['spec']['volumes']
+    assert any(item.get('persistentVolumeClaim', {}).get('claimName') == 'test-state' for item in volumes)
