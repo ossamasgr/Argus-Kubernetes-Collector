@@ -12,6 +12,14 @@ credentials:
 ca:
   # Optional ConfigMap containing ca.crt, for a private Argus CA.
   existingConfigMap: ""
+monitoring:
+  # Optional operator-provisioned Secret with targets.json and any target CA/token files.
+  enabled: false
+  existingSecret: ""
+  # Existing persistent writable claim used to prevent lease replay across pod restarts.
+  stateClaim: ""
+  # Explicit CIDR and TCP port pairs allowed for approved monitoring targets.
+  egress: []
 image:
   repository: ghcr.io/ossamasgr/argus-kubernetes-collector
   tag: "v0.1.1"

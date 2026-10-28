@@ -21,4 +21,13 @@ spec:
         - {protocol: TCP, port: 443}
         - {protocol: TCP, port: {{ .Values.networkPolicy.apiServerPort }}}
         - {protocol: TCP, port: {{ .Values.networkPolicy.platformPort }}}
+    {{- if .Values.monitoring.enabled }}
+    {{- range .Values.monitoring.egress }}
+    - to:
+        - ipBlock:
+            cidr: {{ .cidr | quote }}
+      ports:
+        - {protocol: TCP, port: {{ .port }}}
+    {{- end }}
+    {{- end }}
 {{- end }}
