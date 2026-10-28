@@ -23,7 +23,7 @@ def configuration(path, *, mount_root='/monitoring'):
     if not isinstance(value, list) or len(value) > 100:
         raise ValueError('invalid_configuration')
     registrations = {}
-    allowed = {'connection_id', 'connection_revision', 'target_revision', 'host', 'port', 'ca_file', 'token_file'}
+    allowed = {'connection_id', 'connection_revision', 'target_revision', 'host', 'port', 'ca_file', 'token_file', 'base_path'}
     required = {'connection_id', 'connection_revision', 'target_revision', 'host', 'port'}
     root = Path(mount_root).resolve()
     for item in value:
@@ -33,6 +33,12 @@ def configuration(path, *, mount_root='/monitoring'):
         if (not isinstance(connection, str) or not re.fullmatch(r'monitoring:[A-Za-z0-9._-]{1,100}', connection) or
                 connection in registrations or any(not isinstance(item[key], str) or
                 not re.fullmatch(r'[a-f0-9]{64}', item[key]) for key in ('connection_revision', 'target_revision'))):
+            raise ValueError('invalid_configuration')
+        if (not isinstance(item['host'], str) or not re.fullmatch(r'[A-Za-z0-9.:-]{1,253}', item['host']) or
+                type(item['port']) is not int or not 1 <= item['port'] <= 65535 or
+                not isinstance(item.get('base_path', ''), str) or
+                len(item.get('base_path', '')) > 512 or
+                not re.fullmatch(r'(?:/[A-Za-z0-9_-]+)*', item.get('base_path', ''))):
             raise ValueError('invalid_configuration')
         for key in ('ca_file', 'token_file'):
             if item.get(key):
@@ -56,7 +62,7 @@ def configuration(path, *, mount_root='/monitoring'):
         derived = hashlib.sha256(json.dumps({'target': item, 'ca_sha256': hashlib.sha256(ca_bytes).hexdigest()},
             sort_keys=True, separators=(',', ':'), allow_nan=False).encode()).hexdigest()
         target = monitoring.Target(host=item['host'], port=item['port'], ca_file=item.get('ca_file', ''),
-                                   token_file=item.get('token_file', ''))
+                                   token_file=item.get('token_file', ''), base_path=item.get('base_path', ''))
         registrations[connection] = monitoring.Registration(item['connection_revision'], derived, target)
     return registrations
 
@@ -141,7 +147,8 @@ def minimize(value, operation):
 def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer):
     registrations = configuration(targets_file)
     clean_old_claims(state_dir)
-    targets = [{'connection_id': key, 'target_revision': value.target_revision} for key, value in registrations.items()]
+    targets = [{'connection_id': key, 'target_revision': value.target_revision, 'host': value.target.host,
+                'port': value.target.port, 'base_path': value.target.base_path} for key, value in registrations.items()]
     transfer(endpoint + '/monitoring-capabilities', agent_key,
              {'version': 1, 'capability': CAPABILITY, 'targets': targets}, ca=platform_ca)
     lease = transfer(endpoint + '/monitoring-next', agent_key, {}, ca=platform_ca).get('lease')

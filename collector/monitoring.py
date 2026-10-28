@@ -26,6 +26,7 @@ class Target:
     port: int
     ca_file: str = ''
     token_file: str = ''
+    base_path: str = ''
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,9 @@ def read(target: Target, operation: str):
     path = PATHS.get(operation)
     if path is None:
         raise ValueError('unsupported_operation')
+    if not isinstance(target.base_path, str) or not re.fullmatch(r'(?:/[A-Za-z0-9_-]+)*', target.base_path):
+        raise ValueError('invalid_target')
+    path = target.base_path + path
     resolved = addresses(target.host, target.port)
     context = ssl.create_default_context(cafile=target.ca_file or None)
     token = Path(target.token_file).read_text().strip() if target.token_file else ''

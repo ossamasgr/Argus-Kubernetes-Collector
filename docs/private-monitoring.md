@@ -21,6 +21,7 @@ Before enabling the feature, a cluster administrator provides:
 [{"connection_id":"monitoring:EXAMPLE", "connection_revision":"<64 lowercase hex digits from the connection>",
   "target_revision":"<64 lowercase hex digits chosen by the administrator>",
   "host":"prometheus.monitoring.svc.cluster.local", "port":8443,
+  "base_path":"",
   "ca_file":"/monitoring/ca.crt", "token_file":"/monitoring/token"}]
 ```
 
@@ -29,6 +30,8 @@ collector. `ca_file` and `token_file` are optional and, when supplied, must be
 files in the mounted Secret. HTTPS certificate verification is always enabled;
 the certificate must match the configured host. All DNS answers are checked,
 and forbidden addresses, redirects and unsupported operations are rejected.
+The host, port and optional base path must match the HTTPS URL saved in the
+Prometheus connection. The owner sees the advertised address before approval.
 
 The collector derives its advertised target revision from the local target
 configuration and CA. Change the administrator's `target_revision` nonce when
