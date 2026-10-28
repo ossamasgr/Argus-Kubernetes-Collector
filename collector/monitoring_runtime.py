@@ -2,6 +2,7 @@
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
@@ -14,7 +15,7 @@ except ImportError:  # The release image runs agent.py as a standalone script.
 CAPABILITY = 'monitoring.prometheus.read.v1'
 
 
-def configuration(path, *, secret_root='/monitoring'):
+def configuration(path, *, mount_root='/monitoring'):
     """Load operator-owned targets; the platform cannot supply paths or endpoints."""
     value = json.loads(Path(path).read_text())
     if not isinstance(value, list) or len(value) > 100:
@@ -22,7 +23,7 @@ def configuration(path, *, secret_root='/monitoring'):
     registrations = {}
     allowed = {'connection_id', 'connection_revision', 'target_revision', 'host', 'port', 'ca_file', 'token_file'}
     required = {'connection_id', 'connection_revision', 'target_revision', 'host', 'port'}
-    root = Path(secret_root).resolve()
+    root = Path(mount_root).resolve()
     for item in value:
         if not isinstance(item, dict) or not required <= set(item) <= allowed:
             raise ValueError('invalid_configuration')
@@ -56,8 +57,26 @@ def claim_once(directory, lease_id):
     return True
 
 
+def clean_old_claims(directory, *, now=None):
+    """Remove only old UUID claim files, long after the maximum lease lifetime."""
+    now = time.time() if now is None else now
+    removed = 0
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            try:
+                if (str(UUID(entry.name)) == entry.name and entry.is_file(follow_symlinks=False) and
+                        now - entry.stat(follow_symlinks=False).st_mtime > 86400):
+                    os.unlink(entry.path)
+                    removed += 1
+                    if removed == 100:
+                        break
+            except (ValueError, FileNotFoundError):
+                continue
+
+
 def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer):
     registrations = configuration(targets_file)
+    clean_old_claims(state_dir)
     targets = [{'connection_id': key, 'target_revision': value.target_revision} for key, value in registrations.items()]
     transfer(endpoint + '/monitoring-capabilities', agent_key,
              {'version': 1, 'capability': CAPABILITY, 'targets': targets}, ca=platform_ca)

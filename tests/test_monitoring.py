@@ -47,7 +47,7 @@ def test_local_configuration_rejects_paths_and_unknown_fields(tmp_path):
     outside.write_text('not a secret to be read')
     path.write_text(json.dumps([{**target, 'token_file':str(outside)}]))
     with pytest.raises(ValueError, match='invalid_configuration'):
-        monitoring_runtime.configuration(path, secret_root=tmp_path / 'secrets')
+        monitoring_runtime.configuration(path, mount_root=tmp_path / 'secrets')
     path.write_text(json.dumps([target, target]))
     with pytest.raises(ValueError, match='invalid_configuration'):
         monitoring_runtime.configuration(path)
