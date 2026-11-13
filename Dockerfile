@@ -7,6 +7,8 @@ LABEL org.opencontainers.image.title="Argus Kubernetes Collector" \
       org.opencontainers.image.version=$VERSION
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /opt/argus
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+    && rm -rf /var/lib/apt/lists/*
 RUN groupadd --gid 10001 argus && useradd --uid 10001 --gid 10001 --no-create-home argus
 COPY --chown=10001:10001 collector/agent.py ./agent.py
 COPY --chown=10001:10001 collector/monitoring.py collector/monitoring_runtime.py ./
