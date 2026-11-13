@@ -37,7 +37,7 @@ class Registration:
     target: Target
 
 
-def execute_lease(lease, *, workspace_id, collector_id, registrations, claim, now=None):
+def execute_lease(lease, *, workspace_id, collector_id, registrations, claim, now=None, allowed_namespaces=()):
     """Execute a single bound lease after the caller authenticates its issuer.
 
     The caller must implement an atomic, durable `claim(lease_id)` returning
@@ -46,11 +46,14 @@ def execute_lease(lease, *, workspace_id, collector_id, registrations, claim, no
     """
     required = {'schema_version', 'capability', 'workspace_id', 'collector_id', 'connection_id', 'connection_revision',
                 'target_revision', 'operation_id', 'lease_id', 'operation', 'issued_at', 'expires_at'}
+    metrics = isinstance(lease, dict) and lease.get('operation') == 'prometheus.metrics'
+    if metrics:
+        required = required | {'metrics_namespace'}
     if not isinstance(lease, dict) or set(lease) != required:
         raise ValueError('invalid_lease')
     if (type(lease['schema_version']) is not int or lease['schema_version'] != 1 or
             lease['capability'] != 'monitoring.prometheus.read.v1' or
-            not isinstance(lease['operation'], str) or lease['operation'] not in PATHS):
+            not isinstance(lease['operation'], str) or (lease['operation'] not in PATHS and not metrics)):
         raise ValueError('invalid_lease')
     if lease['workspace_id'] != workspace_id or lease['collector_id'] != collector_id:
         raise ValueError('invalid_lease')
@@ -76,8 +79,16 @@ def execute_lease(lease, *, workspace_id, collector_id, registrations, claim, no
             registration.connection_revision != lease['connection_revision'] or
             registration.target_revision != lease['target_revision']):
         raise ValueError('unregistered_target')
+    if metrics and lease['metrics_namespace'] not in allowed_namespaces:
+        raise ValueError('namespace_denied')
     if not claim(lease['lease_id']):
         raise ValueError('replayed_lease')
+    if metrics:
+        try:
+            from .metric_profile import query_path, normalize
+        except ImportError:
+            from metric_profile import query_path, normalize
+        return normalize(read(registration.target, lease['operation'], metrics_path=query_path(lease['metrics_namespace'], int(current.timestamp()) // 60 * 60)))
     return read(registration.target, lease['operation'])
 
 
@@ -112,8 +123,8 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
             raise
 
 
-def read(target: Target, operation: str):
-    path = PATHS.get(operation)
+def read(target: Target, operation: str, *, metrics_path=None):
+    path = metrics_path if operation == 'prometheus.metrics' else PATHS.get(operation)
     if path is None:
         raise ValueError('unsupported_operation')
     if not isinstance(target.base_path, str) or not re.fullmatch(r'(?:/[A-Za-z0-9_-]+)*', target.base_path):

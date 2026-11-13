@@ -120,16 +120,52 @@ def minimize(value, operation):
         if not isinstance(groups, list):
             raise ValueError('invalid_response')
         rules = []
+        result_groups = []
         for group in groups:
             if not isinstance(group, dict) or not isinstance(group.get('rules'), list):
                 raise ValueError('invalid_response')
             for rule in group['rules']:
                 if not isinstance(rule, dict) or rule.get('type') != 'alerting' or not isinstance(rule.get('name'), str):
                     raise ValueError('invalid_response')
-                rules.append({'type': 'alerting', 'name': rule['name']})
+                labels = rule.get('labels') if isinstance(rule.get('labels'), dict) else {}
+                annotations = rule.get('annotations') if isinstance(rule.get('annotations'), dict) else {}
+                # Keep only bounded alerting fields consumed by Argus; drop arbitrary labels/annotations.
+                detail = {'type': 'alerting', 'name': rule['name']}
+                for key, size in (('query', 500), ('state', 20)):
+                    if isinstance(rule.get(key), str):
+                        detail[key] = rule[key][:size]
+                if type(rule.get('duration')) in (int, float) and 0 <= rule['duration'] <= 31536000:
+                    detail['duration'] = rule['duration']
+                if isinstance(labels.get('severity'), str):
+                    detail['labels'] = {'severity': labels['severity'][:40]}
+                summary = annotations.get('summary')
+                if isinstance(summary, str):
+                    detail['annotations'] = {'summary': summary[:300]}
+                rules.append(detail)
                 if len(rules) > 500:
                     raise ValueError('limit')
-        return {'status': 'success', 'data': {'groups': [{'rules': rules}]}}
+            result_groups.append({'name': str(group.get('name', ''))[:120], 'rules': rules[:]})
+            rules = []
+        # Detailed cluster listings are larger than a lease; bound them explicitly.
+        if sum(len(g['rules']) for g in result_groups) > 500:
+            raise ValueError('limit')
+        result = {'status': 'success', 'data': {'groups': result_groups}}
+        # Preserve every name/state/severity. Trim the largest narrative fields if needed
+        # to remain inside the existing 64 KiB wire budget.
+        candidates = [r for g in result_groups for r in g['rules']]
+        candidates.sort(key=lambda r: len(json.dumps(r)), reverse=True)
+        for field in ('annotations', 'query'):
+            for rule in candidates:
+                if len(json.dumps(result, allow_nan=False).encode()) <= 64_000:
+                    return result
+                rule.pop(field, None)
+        return result
+    if operation == 'prometheus.metrics':
+        try:
+            from .metric_profile import normalize
+        except ImportError:
+            from metric_profile import normalize
+        return normalize(value)
     if operation == 'prometheus.alerts':
         alerts = data.get('alerts')
         if not isinstance(alerts, list) or len(alerts) > 500:
@@ -150,7 +186,8 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
     targets = [{'connection_id': key, 'target_revision': value.target_revision, 'host': value.target.host,
                 'port': value.target.port, 'base_path': value.target.base_path} for key, value in registrations.items()]
     transfer(endpoint + '/monitoring-capabilities', agent_key,
-             {'version': 1, 'capability': CAPABILITY, 'targets': targets}, ca=platform_ca)
+             {'version': 1, 'capability': CAPABILITY, 'targets': targets,
+              'operations': ['prometheus.rules', 'prometheus.alerts', 'prometheus.metrics']}, ca=platform_ca)
     lease = transfer(endpoint + '/monitoring-next', agent_key, {}, ca=platform_ca).get('lease')
     if lease is None:
         return 'idle'
@@ -162,7 +199,8 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
     workspace, collector = parts[-2], 'kubernetes:' + parts[-1]
     try:
         data = monitoring.execute_lease(lease, workspace_id=workspace, collector_id=collector,
-            registrations=registrations, claim=lambda key: claim_once(state_dir, key))
+            registrations=registrations, claim=lambda key: claim_once(state_dir, key),
+            allowed_namespaces=json.loads(os.environ.get('ARGUS_NAMESPACES', '[]')))
         data = minimize(data, lease['operation'])
         bounded_result(data)
         outcome, error = 'complete', ''

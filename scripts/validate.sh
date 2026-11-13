@@ -19,7 +19,7 @@ for invalid in 'argus.endpoint=http://example.com' 'watchNamespaces[0]=Bad_Names
     echo "FAIL: chart accepted invalid values: $invalid"; exit 1
   fi
 done
-docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONPATH=/work -v "$PWD:/work" -w /work python:3.12-slim@sha256:cb33f7f771ecec2ef1225cf39b159591a040391bd73e4c01f00fdfc4c47611d2 sh -c 'pip install --quiet --user pytest==8.4.2 ruff==0.17.1 PyYAML==6.0.3 && python -m ruff check collector tests && python -m pytest -q'
+docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONPATH=/work -v "$PWD:/work" -w /work python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b sh -c 'pip install --quiet --user pytest==8.4.2 ruff==0.17.1 PyYAML==6.0.3 && python -m ruff check collector tests && python -m pytest -q'
 docker build --provenance=false --sbom=false -t argus-collector:validation .
 docker run --rm --entrypoint python argus-collector:validation -c 'import os,ssl; assert os.getuid()==10001; assert ssl.create_default_context().get_ca_certs(); import agent; assert len(agent.RESOURCES)==9; print("Non-root runtime and TLS trust verified")'
 echo 'Collector and Helm validation passed'
