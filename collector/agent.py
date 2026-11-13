@@ -127,12 +127,13 @@ def main():
         if targets:
             try:
                 try:
-                    from .monitoring_runtime import run_once
+                    from .monitoring_runtime import run_batch
                 except ImportError:
-                    from monitoring_runtime import run_once
-                result = run_once(endpoint, Path('/credentials/agent-key').read_text().strip(), platform_ca,
+                    from monitoring_runtime import run_batch
+                results = run_batch(endpoint, Path('/credentials/agent-key').read_text().strip(), platform_ca,
                     targets, os.environ['ARGUS_MONITORING_STATE_DIR'], transfer)
-                print(json.dumps({'event': 'private_monitoring', 'result': result}), flush=True)
+                for result in results:
+                    print(json.dumps({'event': 'private_monitoring', 'result': result}), flush=True)
             except Exception:
                 print('{"event":"private_monitoring_failed"}', flush=True)
         time.sleep(max(5, 60 - (time.monotonic() - started)))

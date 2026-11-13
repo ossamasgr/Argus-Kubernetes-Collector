@@ -180,14 +180,15 @@ def minimize(value, operation):
     raise ValueError('unsupported_operation')
 
 
-def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer):
+def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer, *, advertise=True):
     registrations = configuration(targets_file)
     clean_old_claims(state_dir)
     targets = [{'connection_id': key, 'target_revision': value.target_revision, 'host': value.target.host,
                 'port': value.target.port, 'base_path': value.target.base_path} for key, value in registrations.items()]
-    transfer(endpoint + '/monitoring-capabilities', agent_key,
-             {'version': 1, 'capability': CAPABILITY, 'targets': targets,
-              'operations': ['prometheus.rules', 'prometheus.alerts', 'prometheus.metrics']}, ca=platform_ca)
+    if advertise:
+        transfer(endpoint + '/monitoring-capabilities', agent_key,
+                 {'version': 1, 'capability': CAPABILITY, 'targets': targets,
+                  'operations': ['prometheus.rules', 'prometheus.alerts', 'prometheus.metrics']}, ca=platform_ca)
     lease = transfer(endpoint + '/monitoring-next', agent_key, {}, ca=platform_ca).get('lease')
     if lease is None:
         return 'idle'
@@ -211,3 +212,21 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
     result.update(outcome=outcome, error_code=error, data=data, observed_at=datetime.now(timezone.utc).isoformat())
     transfer(endpoint + '/monitoring-result', agent_key, result, ca=platform_ca)
     return outcome
+
+
+def run_batch(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer):
+    """Drain bounded work without starving metrics behind existing alert watches.
+
+    Advertise once per inventory cycle; repeated advertisements would hit the
+    platform's 15-second rate limit. Each read keeps its own lease and replay claim.
+    """
+    deadline = time.monotonic() + 45
+    results = []
+    for index in range(10):
+        if index and time.monotonic() >= deadline:
+            break
+        result = run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer, advertise=index == 0)
+        results.append(result)
+        if result == 'idle':
+            break
+    return results

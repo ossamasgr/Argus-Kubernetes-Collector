@@ -63,3 +63,23 @@ def test_rules_keep_details_without_arbitrary_labels():
     assert rule['state'] == 'inactive' and rule['labels'] == {'severity': 'warning'}
     assert rule['query'].startswith('histogram_quantile') and rule['annotations'] == {'summary': 'Latency high'}
     assert 'password' not in json.dumps(result) and 'secret' not in json.dumps(result)
+
+
+def test_batch_drains_alerts_and_metrics_without_repeated_advertisements(monkeypatch):
+    calls = []
+    def once(*args, advertise=True):
+        calls.append(advertise)
+        return 'complete' if len(calls) < 4 else 'idle'
+    monkeypatch.setattr(monitoring_runtime, 'run_once', once)
+    assert monitoring_runtime.run_batch('', '', None, '', '', None) == ['complete', 'complete', 'complete', 'idle']
+    assert calls == [True, False, False, False]
+
+
+def test_batch_has_count_and_elapsed_time_limits(monkeypatch):
+    calls = []
+    monkeypatch.setattr(monitoring_runtime, 'run_once', lambda *a, **k: calls.append(k) or 'complete')
+    monkeypatch.setattr(monitoring_runtime.time, 'monotonic', lambda: 0)
+    assert len(monitoring_runtime.run_batch('', '', None, '', '', None)) == 10
+    times = iter([0, 46])
+    monkeypatch.setattr(monitoring_runtime.time, 'monotonic', lambda: next(times))
+    assert monitoring_runtime.run_batch('', '', None, '', '', None) == ['complete']

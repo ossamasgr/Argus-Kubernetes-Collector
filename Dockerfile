@@ -1,5 +1,5 @@
 FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
-ARG VERSION=0.3.0
+ARG VERSION=0.3.1
 LABEL org.opencontainers.image.title="Argus Kubernetes Collector" \
       org.opencontainers.image.description="Outbound, namespace-scoped, read-only Kubernetes inventory for Argus SRE" \
       org.opencontainers.image.source="https://github.com/ossamasgr/Argus-Kubernetes-Collector" \
