@@ -23,3 +23,7 @@
 - Preserve bounded alert-rule details instead of sending names only.
 - Keep existing target permissions, TLS verification, response limits and replay protection.
 
+# 0.3.1
+
+- Drain up to ten individually authorized monitoring reads per inventory cycle, with a bounded time budget and one capability advertisement, so alert watches do not starve metric collection.
+
