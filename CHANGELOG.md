@@ -17,3 +17,9 @@
 - Public Helm chart with external credentials, private CA support and credential rollout revision.
 - AMD64 and ARM64 images; published chart releases pin image digests.
 - No workload changes, pod logs, Secrets, ConfigMaps or node access.
+# 0.3.0
+
+- Add fixed, namespace-scoped one-hour application metric queries through the approved Prometheus target.
+- Preserve bounded alert-rule details instead of sending names only.
+- Keep existing target permissions, TLS verification, response limits and replay protection.
+
