@@ -46,7 +46,10 @@ def execute_lease(lease, *, workspace_id, collector_id, registrations, claim, no
     """
     required = {'schema_version', 'capability', 'workspace_id', 'collector_id', 'connection_id', 'connection_revision',
                 'target_revision', 'operation_id', 'lease_id', 'operation', 'issued_at', 'expires_at'}
-    metrics = isinstance(lease, dict) and lease.get('operation') == 'prometheus.metrics'
+    dashboard = isinstance(lease, dict) and lease.get('operation') == 'prometheus.dashboard'
+    metrics = isinstance(lease, dict) and lease.get('operation') in ('prometheus.metrics', 'prometheus.dashboard')
+    if dashboard:
+        required = required | {'dashboard_mode', 'dashboard_metrics'}
     if metrics:
         required = required | {'metrics_namespace'}
     if not isinstance(lease, dict) or set(lease) != required:
@@ -83,6 +86,13 @@ def execute_lease(lease, *, workspace_id, collector_id, registrations, claim, no
         raise ValueError('namespace_denied')
     if not claim(lease['lease_id']):
         raise ValueError('replayed_lease')
+    if dashboard:
+        try:
+            from .dashboard_profile import query_path
+        except ImportError:
+            from dashboard_profile import query_path
+        path = query_path(lease['metrics_namespace'], lease['dashboard_mode'], lease['dashboard_metrics'], int(issued.timestamp()) // 60 * 60)
+        return read(registration.target, lease['operation'], metrics_path=path)
     if metrics:
         try:
             from .metric_profile import query_path, normalize
@@ -124,7 +134,7 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
 
 
 def read(target: Target, operation: str, *, metrics_path=None):
-    path = metrics_path if operation == 'prometheus.metrics' else PATHS.get(operation)
+    path = metrics_path if operation in ('prometheus.metrics', 'prometheus.dashboard') else PATHS.get(operation)
     if path is None:
         raise ValueError('unsupported_operation')
     if not isinstance(target.base_path, str) or not re.fullmatch(r'(?:/[A-Za-z0-9_-]+)*', target.base_path):

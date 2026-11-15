@@ -9,3 +9,10 @@ Responses contain only the metric key, timestamps and finite numeric values. Non
 Rule discovery also retains state, duration, severity and bounded query/summary text. Unrelated labels and annotations are dropped. If the existing 64 KiB payload budget is reached, narrative fields are removed before rule names, state or severity. Metrics use the same size limit.
 
 Install the backend update before upgrading the collector. Older collectors continue using the original rules/alerts contract and do not advertise metrics. Reuse the existing monitoring Secret, replay PVC, CA and service-proxy RBAC; metrics require no extra Kubernetes permissions or network destinations. Published Helm charts pin the runtime image digest.
+
+
+## Automatic application dashboards (0.4.0)
+
+`prometheus.dashboard` supports metric-name discovery and bounded one-hour/60-second queries in locally allowed namespaces. The lease carries `dashboard_mode` and up to eight `dashboard_metrics` entries (`name`, `kind`), never PromQL or URLs. The collector compiles namespace selectors, counter rates and classic-histogram p95 queries locally. Source timestamps accompany every panel. Namespace ownership must be exclusive to the app; shared sources require a narrower mapping.
+
+Argus stores dashboard definitions, query text and discovery metadata. Query samples are a bounded two-minute in-memory transport response, not database history. A lost/expired response requires a fresh Prometheus query. Existing rules, alerts and the legacy fixed Minishop profile remain compatible.
