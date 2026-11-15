@@ -1,3 +1,9 @@
+# 0.4.0
+
+- Discover namespace-scoped metric names and run bounded application dashboard queries through the approved reader.
+- Carry metric identifiers and template kinds in leases; reject arbitrary PromQL, endpoints, namespace escapes and replay.
+- Return source sample timestamps alongside range samples for explicit freshness. Credentials remain mounted in the collector.
+
 # 0.2.0
 
 - Optional, operator-approved private Prometheus rule discovery and signal reads.
