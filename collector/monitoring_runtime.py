@@ -188,7 +188,7 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
     if advertise:
         transfer(endpoint + '/monitoring-capabilities', agent_key,
                  {'version': 1, 'capability': CAPABILITY, 'targets': targets,
-                  'operations': ['prometheus.rules', 'prometheus.alerts', 'prometheus.metrics']}, ca=platform_ca)
+                  'operations': ['prometheus.rules', 'prometheus.alerts', 'prometheus.metrics', 'prometheus.dashboard']}, ca=platform_ca)
     lease = transfer(endpoint + '/monitoring-next', agent_key, {}, ca=platform_ca).get('lease')
     if lease is None:
         return 'idle'
@@ -202,7 +202,14 @@ def run_once(endpoint, agent_key, platform_ca, targets_file, state_dir, transfer
         data = monitoring.execute_lease(lease, workspace_id=workspace, collector_id=collector,
             registrations=registrations, claim=lambda key: claim_once(state_dir, key),
             allowed_namespaces=json.loads(os.environ.get('ARGUS_NAMESPACES', '[]')))
-        data = minimize(data, lease['operation'])
+        if lease['operation'] == 'prometheus.dashboard':
+            try:
+                from .dashboard_profile import normalize
+            except ImportError:
+                from dashboard_profile import normalize
+            normalize(data, lease['dashboard_mode'], len(lease['dashboard_metrics']))
+        else:
+            data = minimize(data, lease['operation'])
         bounded_result(data)
         outcome, error = 'complete', ''
     except (OSError, ValueError, KeyError, TypeError) as exc:

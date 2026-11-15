@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade 
 RUN groupadd --gid 10001 argus && useradd --uid 10001 --gid 10001 --no-create-home argus
 COPY --chown=10001:10001 collector/agent.py ./agent.py
 COPY --chown=10001:10001 collector/monitoring.py collector/monitoring_runtime.py ./
-COPY --chown=10001:10001 collector/metric_profile.py ./
+COPY --chown=10001:10001 collector/metric_profile.py collector/dashboard_profile.py ./
 COPY LICENSE ./LICENSE
 USER 10001:10001
 ENTRYPOINT ["python", "-B", "/opt/argus/agent.py"]
