@@ -20,9 +20,9 @@ def validate(namespace, mode, metrics):
     for item in metrics:
         if (not isinstance(item, dict) or set(item) != {'name', 'kind'} or
                 not isinstance(item['name'], str) or not re.fullmatch(r'[a-zA-Z_:][a-zA-Z0-9_:]{0,127}', item['name']) or
-                item['kind'] not in ('counter', 'gauge', 'histogram')):
+                item['kind'] not in ('counter', 'gauge', 'histogram', 'error_ratio')):
             raise ValueError('invalid_metric')
-    if len({m['name'] for m in metrics}) != len(metrics):
+    if len({(m['name'], m['kind']) for m in metrics}) != len(metrics):
         raise ValueError('duplicate_metric')
 
 
@@ -34,6 +34,12 @@ def selector(name, namespace, label):
 def expression(item, namespace):
     name, kind = item['name'], item['kind']
     selectors = [selector(name, namespace, label) for label in ('namespace', 'kubernetes_namespace')]
+    if kind == 'error_ratio':
+        if name != 'minishop_http_requests_total':
+            raise ValueError('unsupported_error_labels')
+        total = expression({'name': name, 'kind': 'counter'}, namespace)
+        errors = '(' + ' or '.join(f'rate({s[:-1]},status=~"5.."}}[5m])' for s in selectors) + ')'
+        return f'100 * (sum({errors}) or ({total} * 0)) / ({total} > 0)' 
     if kind in ('counter', 'histogram'):
         scoped = '(' + ' or '.join(f'rate({s}[5m])' for s in selectors) + ')'
     else:
@@ -42,7 +48,7 @@ def expression(item, namespace):
         return f'histogram_quantile(0.95, sum by (le) ({scoped}))'
     if name.startswith('container_'):
         return f'sum(max by (namespace,pod,container) ({scoped}))'
-    return f'max({scoped})' if name.startswith('kube_') else f'sum({scoped})'
+    return f'sum(max by (namespace,deployment) ({scoped}))' if name == 'kube_deployment_status_replicas_available' else f'sum({scoped})'
 
 
 def query_path(namespace, mode, metrics, end):

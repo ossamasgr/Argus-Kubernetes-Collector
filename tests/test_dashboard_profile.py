@@ -16,6 +16,10 @@ def test_catalog_is_namespace_scoped_and_queries_are_bounded():
     for name in ('orders_total{} or up', 'up{namespace="other"}', 'up&query=up'):
         with pytest.raises(ValueError):
             profile.query_path('shop-prod', 'query', [{'name': name, 'kind': 'gauge'}], 1800000000)
+    query = profile.expression({'name': 'minishop_http_requests_total', 'kind': 'error_ratio'}, 'shop-prod')
+    assert 'status=~"5.."' in query and '> 0)' in query
+    with pytest.raises(ValueError):
+        profile.expression({'name': 'unknown_total', 'kind': 'error_ratio'}, 'shop-prod')
 
 
 def test_dashboard_lease_keeps_local_namespace_and_replay_boundary(monkeypatch):
