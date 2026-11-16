@@ -1,3 +1,10 @@
+## 0.4.1
+
+- Remove the fixed Kubernetes 1.27 gate; render security settings for the cluster API version.
+- Fall back to the legacy CronJob API only for unavailable stable endpoints.
+- Report safe failure stages and categories for network, TLS and credential diagnosis.
+- Validate representative chart versions from Kubernetes 1.16 through 1.36 and document same-cluster ingress NAT.
+
 # 0.4.0
 
 - Discover namespace-scoped metric names and run bounded application dashboard queries through the approved reader.
