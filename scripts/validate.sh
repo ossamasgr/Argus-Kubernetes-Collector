@@ -6,6 +6,9 @@ helm() { docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/work" -w /work alp
 helm lint --strict charts/argus-collector -f tests/values.yaml
 helm template test charts/argus-collector --namespace argus-test -f tests/values.yaml > artifacts/rendered.yaml
 docker run --rm -v "$PWD/artifacts:/manifests:ro" ghcr.io/yannh/kubeconform:v0.6.7 -strict -summary -kubernetes-version 1.28.10 /manifests/rendered.yaml
+for version in 1.16.15 1.18.20 1.19.16 1.21.14 1.25.16 1.28.10 1.33.0 1.36.0; do
+  helm template compatibility charts/argus-collector --namespace argus-test -f tests/values.yaml --kube-version "$version" > "artifacts/compatibility-$version.yaml"
+done
 private=(--set monitoring.enabled=true --set monitoring.existingSecret=test-targets --set monitoring.stateClaim=test-state
   --set 'monitoring.egress[0].cidr=10.0.0.0/8' --set 'monitoring.egress[0].port=8443'
   --set 'monitoring.apiServerCidrs[0]=10.1.0.0/16' --set 'monitoring.platformCidrs[0]=10.2.0.0/16')

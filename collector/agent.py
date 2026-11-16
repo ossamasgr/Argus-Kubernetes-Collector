@@ -2,9 +2,10 @@
 import json
 import os
 import ssl
+import socket
 import time
 from pathlib import Path
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, quote, urlsplit
 from urllib.request import Request, build_opener, HTTPSHandler, ProxyHandler, HTTPRedirectHandler
 
@@ -60,6 +61,40 @@ def summarize(item, namespace, kind):
     return result
 
 
+def failure(event, stage, exc):
+    """Log allowlisted diagnostics without URLs, credentials or provider response bodies."""
+    reason = exc.reason if isinstance(exc, URLError) else exc
+    if isinstance(exc, HTTPError):
+        error = {401: 'unauthorized', 403: 'forbidden'}.get(exc.code, 'http_error')
+    elif isinstance(reason, (TimeoutError, socket.timeout)):
+        error = 'timeout'
+    elif isinstance(reason, ssl.SSLError):
+        error = 'tls_error'
+    elif isinstance(reason, socket.gaierror):
+        error = 'dns_error'
+    elif isinstance(exc, (URLError, OSError)):
+        error = 'network_error'
+    elif isinstance(exc, (ValueError, KeyError, TypeError)):
+        error = 'invalid_response'
+    else:
+        error = 'unexpected_error'
+    record = {'event': event, 'stage': stage, 'error': error}
+    if isinstance(exc, HTTPError):
+        record['http_status'] = exc.code
+    print(json.dumps(record), flush=True)
+
+
+def resource_page(get, prefix, namespace, resource, query):
+    suffix = '/namespaces/' + quote(namespace, safe='') + '/' + resource + '?' + query
+    try:
+        return get('/' + prefix + suffix)
+    except HTTPError as exc:
+        # Retry only an absent/removed API. Authorization/network failures stay visible.
+        if resource != 'cronjobs' or exc.code not in (404, 410):
+            raise
+        return get('/apis/batch/v1beta1' + suffix)
+
+
 def collect(namespaces, get):
     items, coverage = [], []
     deadline = time.monotonic() + 45
@@ -77,7 +112,7 @@ def collect(namespaces, get):
                     params = {'limit': min(50, 500 - len(items))}
                     if cursor:
                         params['continue'] = cursor
-                    data = get('/' + prefix + '/namespaces/' + quote(namespace, safe='') + '/' + resource + '?' + urlencode(params))
+                    data = resource_page(get, prefix, namespace, resource, urlencode(params))
                     batch = data['items']
                     if not isinstance(batch, list) or len(batch) > params['limit']:
                         raise ValueError('invalid_response')
@@ -109,20 +144,23 @@ def main():
     api = 'https://kubernetes.default.svc'
     while True:
         started = time.monotonic()
+        stage = 'collection'
         try:
             body = collect(namespaces, lambda path: transfer(api + path, (SA / 'token').read_text().strip(), ca=str(SA / 'ca.crt')))
             agent_key = Path('/credentials/agent-key').read_text().strip()
+            stage = 'snapshot'
             try:
                 transfer(endpoint + '/snapshot', agent_key, body, ca=platform_ca)
             except HTTPError as exc:
                 if exc.code != 401:
                     raise
+                stage = 'enrollment'
                 transfer(endpoint + '/enroll', Path('/credentials/enrollment-key').read_text().strip(), {}, ca=platform_ca)
+                stage = 'snapshot'
                 transfer(endpoint + '/snapshot', agent_key, body, ca=platform_ca)
             print(json.dumps({'event': 'snapshot_sent', 'items': len(body['items']), 'complete': all(c['complete'] for c in body['coverage'])}), flush=True)
-        except Exception:
-            # Provider responses and bearer credentials never enter logs.
-            print('{"event":"collection_or_delivery_failed"}', flush=True)
+        except Exception as exc:
+            failure('collection_or_delivery_failed', stage, exc)
         targets = os.environ.get('ARGUS_MONITORING_TARGETS_FILE')
         if targets:
             try:
@@ -134,8 +172,8 @@ def main():
                     targets, os.environ['ARGUS_MONITORING_STATE_DIR'], transfer)
                 for result in results:
                     print(json.dumps({'event': 'private_monitoring', 'result': result}), flush=True)
-            except Exception:
-                print('{"event":"private_monitoring_failed"}', flush=True)
+            except Exception as exc:
+                failure('private_monitoring_failed', 'private_monitoring', exc)
         time.sleep(max(5, 60 - (time.monotonic() - started)))
 
 

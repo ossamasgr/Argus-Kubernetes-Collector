@@ -4,7 +4,7 @@ Read-only, namespace-scoped Kubernetes inventory for Argus SRE. The collector ru
 
 ## Install
 
-Requirements: Kubernetes 1.27+, Helm 3.10+, kubectl with administrator access to your cluster, and outbound DNS/HTTPS access to Argus and the image registry. Selected namespaces must already exist. NetworkPolicy enforcement depends on your CNI.
+Requirements: Kubernetes exposing core/v1, apps/v1, batch/v1 and namespaced RBAC/network-policy APIs, Helm 3.10+, kubectl with administrator access to your cluster, and outbound DNS/HTTPS access to Argus and the image registry. Selected namespaces must already exist. NetworkPolicy enforcement depends on your CNI.
 
 In Argus, open your project → **Connections → Kubernetes → Connect a cluster**. Enter a name and choose namespaces, then copy the installation command and run it in your cluster terminal within 30 minutes. No script download is required. The command creates an external credential Secret and optional CA ConfigMap, then installs the public chart. The dialog updates automatically from Connecting to Connected when the collector reports back. Cluster details show inventory and collection coverage.
 
@@ -87,3 +87,11 @@ Run `bash scripts/validate.sh` on a Docker-enabled development host. It checks t
 Pull requests are checked by GitHub Actions. Push a matching `vX.Y.Z` tag after merging a reviewed release to publish AMD64/ARM64 images, package the chart with its image digest, create a GitHub Release and update the GitHub Pages chart index. Set GitHub Pages source to **GitHub Actions**. The first GHCR package must be made public in package settings; verify an anonymous pull before announcing the release. Subsequent releases retain that visibility.
 
 License: [MIT](LICENSE). See [SECURITY.md](SECURITY.md).
+
+## Kubernetes compatibility and delivery troubleshooting
+
+The chart has no upper Kubernetes version gate. It selects the available seccomp representation when rendering and the collector retries CronJobs with `batch/v1beta1` only if `batch/v1` returns 404/410. Missing resource APIs remain explicit incomplete coverage; authentication failures never trigger an API downgrade. Compatibility validation renders representative Kubernetes 1.16–1.36 versions. This is capability-based compatibility, not a claim that every historical or future distribution has been tested.
+
+Failure logs include an allowlisted stage, error category and HTTP status, without credentials, request URLs or response bodies. `timeout` during snapshot/enrollment indicates a network path problem; `unauthorized` means the latest installation credentials must be installed. A successful Helm release alone does not prove delivery.
+
+When Argus is reached through an ingress in the same cluster, Kubernetes can translate its external IP to ingress Pod IPs before NetworkPolicy evaluation. For private monitoring, include the ingress destination network in `monitoring.platformCidrs` on the platform port, or install a scoped egress policy selecting the ingress namespace and Pods. Preserve verified TLS and restricted API/monitoring destinations.
