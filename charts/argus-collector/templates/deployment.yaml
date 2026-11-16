@@ -18,6 +18,9 @@ spec:
         app.kubernetes.io/name: argus-collector
         app.kubernetes.io/instance: {{ .Release.Name | quote }}
       annotations:
+        {{- if not (semverCompare ">=1.19-0" .Capabilities.KubeVersion.Version) }}
+        seccomp.security.alpha.kubernetes.io/pod: runtime/default
+        {{- end }}
         argus.ai/credential-revision: {{ .Values.credentials.revision | quote }}
     spec:
       {{- with .Values.hostAliases }}
@@ -33,7 +36,9 @@ spec:
         {{- if .Values.monitoring.enabled }}
         fsGroup: 10001
         {{- end }}
+        {{- if semverCompare ">=1.19-0" .Capabilities.KubeVersion.Version }}
         seccompProfile: {type: RuntimeDefault}
+        {{- end }}
       containers:
         - name: collector
           image: {{ printf "%s%s" .Values.image.repository (ternary (printf "@%s" .Values.image.digest) (printf ":%s" .Values.image.tag) (ne .Values.image.digest "")) | quote }}

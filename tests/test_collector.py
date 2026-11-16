@@ -96,3 +96,37 @@ def test_chart_is_namespaced_read_only_and_uses_external_credentials():
     policy = next(o for o in objects if o['kind'] == 'NetworkPolicy')['spec']
     assert policy['ingress'] == []
     assert set(policy['policyTypes']) == {'Ingress', 'Egress'}
+
+
+@pytest.mark.parametrize('status', [404, 410])
+def test_legacy_cronjob_api_fallback(status):
+    calls = []
+    def get(path):
+        calls.append(path)
+        if path.startswith('/apis/batch/v1/namespaces/') and '/cronjobs?' in path:
+            raise HTTPError(path, status, 'private', {}, None)
+        return {'items': []}
+    result = agent.collect(['production'], get)
+    assert all(c['complete'] for c in result['coverage'])
+    assert any(path.startswith('/apis/batch/v1beta1/') for path in calls)
+
+
+@pytest.mark.parametrize('status', [401, 403, 500])
+def test_api_errors_do_not_downgrade(status):
+    calls = []
+    def get(path):
+        calls.append(path)
+        raise HTTPError(path, status, 'private', {}, None)
+    result = agent.collect(['production'], get)
+    assert all(not c['complete'] for c in result['coverage'])
+    assert not any('/v1beta1/' in path for path in calls)
+
+
+def test_failure_logs_are_actionable_and_never_include_exception_details(capsys):
+    from urllib.error import URLError
+    agent.failure('collection_or_delivery_failed', 'snapshot', URLError(TimeoutError('secret url and token')))
+    agent.failure('collection_or_delivery_failed', 'enrollment', HTTPError('https://private', 401, 'secret', {}, None))
+    lines = capsys.readouterr().out.splitlines()
+    assert json.loads(lines[0])['error'] == 'timeout'
+    assert json.loads(lines[1]) == {'event': 'collection_or_delivery_failed', 'stage': 'enrollment', 'error': 'unauthorized', 'http_status': 401}
+    assert 'secret' not in ''.join(lines) and 'private' not in ''.join(lines)
