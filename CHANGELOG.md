@@ -1,3 +1,12 @@
+## 0.5.0
+
+- Optional read-only security view for Argus security reviews, on by default: workload and pod settings, services,
+  ingresses, network policies, service accounts, roles and bindings, disruption budgets, quotas and the cluster version.
+- Secrets and ConfigMaps are never read. Environment values become `(set)`, commands and arguments are removed, only
+  allowlisted annotations are kept, and the snapshot is capped at 2 MB with per-kind coverage.
+- `securityRead.cluster` (default on) adds a read-only ClusterRole for cluster-wide roles and bindings that reach the
+  watched namespaces, `get` on the watched namespaces only, and ingress classes. Set `securityRead.enabled=false` to keep 0.4 permissions.
+
 ## 0.4.1
 
 - Remove the fixed Kubernetes 1.27 gate; render security settings for the cluster API version.

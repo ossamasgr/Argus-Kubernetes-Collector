@@ -77,7 +77,7 @@ def test_tls_uses_explicit_ca_or_system_roots_without_silent_fallback(monkeypatc
 def test_chart_is_namespaced_read_only_and_uses_external_credentials():
     with open('artifacts/rendered.yaml') as stream:
         objects = list(yaml.safe_load_all(stream))
-    assert not any(o['kind'] in ('Secret', 'Namespace', 'ClusterRole', 'ClusterRoleBinding', 'Service') for o in objects)
+    assert not any(o['kind'] in ('Secret', 'Namespace', 'Service') for o in objects)
     roles = [o for o in objects if o['kind'] == 'Role']
     assert {o['metadata']['namespace'] for o in roles} == {'production', 'monitoring'}
     for role in roles:

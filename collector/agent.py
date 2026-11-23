@@ -137,11 +137,28 @@ def collect(namespaces, get):
     return result
 
 
+def security_snapshot():
+    try:
+        from . import security_snapshot as module
+    except ImportError:
+        import security_snapshot as module
+    return module
+
+
+def send_security(endpoint, platform_ca, namespaces, get, cluster):
+    """Send the read-only security view. An Argus that does not know this route yet answers 404 and is retried later."""
+    body = security_snapshot().collect(namespaces, get, cluster=cluster)
+    transfer(endpoint + '/security-snapshot', Path('/credentials/agent-key').read_text().strip(), body, ca=platform_ca)
+    return {'event': 'security_snapshot_sent', 'items': len(body['items']), 'complete': all(c['complete'] for c in body['coverage'])}
+
+
 def main():
     endpoint = os.environ['ARGUS_ENDPOINT'].rstrip('/')
     namespaces = json.loads(os.environ['ARGUS_NAMESPACES'])
     platform_ca = os.environ.get('ARGUS_CA_FILE')
     api = 'https://kubernetes.default.svc'
+    security_mode = os.environ.get('ARGUS_SECURITY_READ', 'off')
+    next_security = 0.0
     while True:
         started = time.monotonic()
         stage = 'collection'
@@ -161,6 +178,13 @@ def main():
             print(json.dumps({'event': 'snapshot_sent', 'items': len(body['items']), 'complete': all(c['complete'] for c in body['coverage'])}), flush=True)
         except Exception as exc:
             failure('collection_or_delivery_failed', stage, exc)
+        if security_mode in ('namespaced', 'cluster') and time.monotonic() >= next_security:
+            next_security = time.monotonic() + security_snapshot().INTERVAL
+            try:
+                print(json.dumps(send_security(endpoint, platform_ca, namespaces,
+                    lambda path: transfer(api + path, (SA / 'token').read_text().strip(), ca=str(SA / 'ca.crt')), security_mode == 'cluster')), flush=True)
+            except Exception as exc:
+                failure('security_snapshot_failed', 'security_snapshot', exc)
         targets = os.environ.get('ARGUS_MONITORING_TARGETS_FILE')
         if targets:
             try:

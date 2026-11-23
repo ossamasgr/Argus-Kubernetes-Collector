@@ -12,6 +12,8 @@ done
 private=(--set monitoring.enabled=true --set monitoring.existingSecret=test-targets --set monitoring.stateClaim=test-state
   --set 'monitoring.egress[0].cidr=10.0.0.0/8' --set 'monitoring.egress[0].port=8443'
   --set 'monitoring.apiServerCidrs[0]=10.1.0.0/16' --set 'monitoring.platformCidrs[0]=10.2.0.0/16')
+helm template namespaced charts/argus-collector --namespace argus-test -f tests/values.yaml --set securityRead.cluster=false > artifacts/security-namespaced.yaml
+helm template inventory charts/argus-collector --namespace argus-test -f tests/values.yaml --set securityRead.enabled=false > artifacts/security-off.yaml
 helm template private charts/argus-collector --namespace argus-test -f tests/values.yaml "${private[@]}" > artifacts/private-monitoring.yaml
 docker run --rm -v "$PWD/artifacts:/manifests:ro" ghcr.io/yannh/kubeconform:v0.6.7 -strict -summary -kubernetes-version 1.28.10 /manifests/private-monitoring.yaml
 if helm template invalid charts/argus-collector -f tests/values.yaml "${private[@]}" --set networkPolicy.enabled=false >artifacts/invalid.log 2>&1; then
@@ -24,5 +26,5 @@ for invalid in 'argus.endpoint=http://example.com' 'watchNamespaces[0]=Bad_Names
 done
 docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e PYTHONPATH=/work -v "$PWD:/work" -w /work python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b sh -c 'pip install --quiet --user pytest==8.4.2 ruff==0.17.1 PyYAML==6.0.3 && python -m ruff check collector tests && python -m pytest -q'
 docker build --provenance=false --sbom=false -t argus-collector:validation .
-docker run --rm --entrypoint python argus-collector:validation -c 'import os,ssl; assert os.getuid()==10001; assert ssl.create_default_context().get_ca_certs(); import agent; assert len(agent.RESOURCES)==9; print("Non-root runtime and TLS trust verified")'
+docker run --rm --entrypoint python argus-collector:validation -c 'import os,ssl; assert os.getuid()==10001; assert ssl.create_default_context().get_ca_certs(); import agent, security_snapshot; assert len(agent.RESOURCES)==9 and security_snapshot.VERSION==1; print("Non-root runtime and TLS trust verified")'
 echo 'Collector and Helm validation passed'

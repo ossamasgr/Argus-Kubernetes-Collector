@@ -23,9 +23,15 @@ monitoring:
   # Explicit destinations for the Kubernetes API and Argus platform when monitoring is enabled.
   apiServerCidrs: []
   platformCidrs: []
+securityRead:
+  # Read-only security view for Argus reviews: workload settings, exposure and permissions.
+  # Secrets and ConfigMaps are never read; environment values and commands are removed before sending.
+  enabled: true
+  # Also read cluster-wide roles and bindings that reach the watched namespaces, their labels and ingress classes.
+  cluster: true
 image:
   repository: ghcr.io/ossamasgr/argus-kubernetes-collector
-  tag: "v0.4.1"
+  tag: "v0.5.0"
   # Release automation pins the published chart to its multi-architecture image digest.
   digest: ""
   pullPolicy: IfNotPresent
