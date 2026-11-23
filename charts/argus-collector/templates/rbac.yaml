@@ -57,7 +57,7 @@ roleRef:
   kind: Role
   name: {{ include "argus.role" $ }}
 {{- end }}
-{{- if and (dig "securityRead" "enabled" true .Values) (dig "securityRead" "cluster" true .Values) }}
+{{- if and (dig "securityRead" "enabled" true .Values.AsMap) (dig "securityRead" "cluster" true .Values.AsMap) }}
 ---
 # Cluster-wide permissions that can reach the watched namespaces, plus their own labels. Read-only.
 apiVersion: rbac.authorization.k8s.io/v1

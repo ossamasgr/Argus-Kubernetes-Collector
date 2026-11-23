@@ -49,7 +49,7 @@ spec:
             - name: ARGUS_NAMESPACES
               value: {{ .Values.watchNamespaces | toJson | quote }}
             - name: ARGUS_SECURITY_READ
-              value: {{ ternary (ternary "cluster" "namespaced" (dig "securityRead" "cluster" true .Values)) "off" (dig "securityRead" "enabled" true .Values) | quote }}
+              value: {{ ternary (ternary "cluster" "namespaced" (dig "securityRead" "cluster" true .Values.AsMap)) "off" (dig "securityRead" "enabled" true .Values.AsMap) | quote }}
             {{- if .Values.monitoring.enabled }}
             - name: ARGUS_MONITORING_TARGETS_FILE
               value: /monitoring/targets.json
