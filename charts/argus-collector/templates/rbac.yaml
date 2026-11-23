@@ -25,7 +25,7 @@ rules:
   - apiGroups: [batch]
     resources: [jobs, cronjobs]
     verbs: [get, list]
-  {{- if dig "securityRead" "enabled" true $.Values }}
+  {{- if dig "securityRead" "enabled" true $.Values.AsMap }}
   # Security review: how workloads are exposed, isolated and allowed to act. Never Secrets or ConfigMaps.
   - apiGroups: [""]
     resources: [serviceaccounts, resourcequotas, limitranges]
